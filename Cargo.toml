@@ -1,5 +1,5 @@
 [package]
-name = "nbox"
+name = "no_ptr"
 version = "0.0.0"
 authors = ["Richard Berry <rjsberry@pm.me>"]
 edition = "2018"
