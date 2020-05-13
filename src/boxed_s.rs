@@ -50,9 +50,11 @@ where
 #[macro_export]
 macro_rules! boxed_s {
     ($val:expr) => {{
-        let mut val = $val;
-        let ptr = &mut val as *mut _;
-        unsafe { $crate::BoxS::__new(val, ptr) }
+        let val = $val;
+        let ptr = &val as *const _;
+        let boxed = unsafe { $crate::BoxS::__new(&val, ptr) };
+        ::core::mem::forget(val);
+        boxed
     }};
 }
 
@@ -139,11 +141,11 @@ where
 {
     /// Acquires memory on the stack and places `x` into it.
     ///
-    /// The acquired memory is backed by `N`. If the size or alignment of `T`
-    /// is greater than that of `N` the box cannot be constructed. `T` will be
-    /// returned in the error variant.
+    /// The acquired memory is backed by `M`. If the size or alignment of `T`
+    /// is greater than that of `M` the box cannot be constructed. This will
+    /// reuslt in a compile fail.
     ///
-    /// If `T` is zero-sized then no memory is required; `N` may also be zero
+    /// If `T` is zero-sized then no memory is required; `M` may also be zero
     /// sized in this case.
     ///
     /// # Examples
@@ -278,10 +280,10 @@ where
     M: Memory,
 {
     #[doc(hidden)]
-    pub unsafe fn __new<U>(val: U, ptr: *mut T) -> Self {
+    pub unsafe fn __new<U>(val: &U, ptr: *const T) -> Self {
         let _ = StaticAssertions::<T, U, M>::new();
-        let boxed = BoxS::<T, M>::from_ptrs(&val, ptr);
-        mem::forget(val);
+        let extra = crate::__retrieve_extra_addr(ptr);
+        let boxed = BoxS::<T, M>::from_ptr(val, extra);
         boxed
     }
 }
@@ -291,16 +293,28 @@ where
     T: ?Sized,
     M: Memory,
 {
-    unsafe fn from_ptrs<U>(ptr_u: *const U, ptr_t: *mut T) -> Self
+    unsafe fn from_ptr<U>(ptr_u: &U, extra: Option<usize>) -> Self
     where
         U: ?Sized,
     {
-        let mut buf = ManuallyDrop::new(MaybeUninit::uninit().assume_init());
-        let dst: *mut u8 = &mut *buf as *mut M as *mut _;
-        ptr::copy_nonoverlapping(ptr_u as *const u8, dst, mem::size_of_val(&*ptr_u));
+        let mut buf: MaybeUninit<M> = MaybeUninit::uninit();
+        let dst: *mut u8 = buf.as_mut_ptr() as *mut _;
+        ptr::copy_nonoverlapping(
+            ptr_u as *const _ as *const u8,
+            dst,
+            mem::size_of_val::<U>(&ptr_u),
+        );
+
+        let mut ptr = MaybeUninit::uninit();
+        let ptr_ptr: *mut usize = ptr.as_mut_ptr() as *mut _;
+        if let Some(addr) = extra {
+            ptr_ptr.add(1).write(addr);
+        }
+        ptr_ptr.write(0);
+
         Self {
-            buf,
-            ptr: write_ptr_addr(ptr_t, 0),
+            buf: ManuallyDrop::new(buf.assume_init()),
+            ptr: ptr.assume_init(),
         }
     }
 
@@ -312,11 +326,8 @@ where
         unsafe { write_ptr_addr(self.ptr, &mut *self.buf as *mut M as _) }
     }
 
-    unsafe fn downcast_unchecked<U: Any>(self) -> BoxS<U, M> {
-        let mut buf = ManuallyDrop::new(MaybeUninit::uninit().assume_init());
-        let src: *const u8 = &*self.buf as *const M as *const _;
-        let dst: *mut u8 = &mut *buf as *mut M as *mut _;
-        ptr::copy_nonoverlapping(src, dst, mem::size_of::<U>());
+    unsafe fn downcast_unchecked<U: Any>(mut self) -> BoxS<U, M> {
+        let buf = mem::replace(&mut self.buf, MaybeUninit::uninit().assume_init());
         let ptr = self.ptr as *mut _;
         mem::forget(self);
         BoxS { buf, ptr }
@@ -335,4 +346,73 @@ where
     T: ?Sized + Sync,
     M: Memory,
 {
+}
+
+/*
+    Unit tests
+*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use core::any::Any;
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    #[test]
+    fn smoke() {
+        let mut boxed = BoxS::<usize, [usize; 1]>::new(0);
+        assert_eq!(*boxed, 0);
+        *boxed = 1;
+        assert_eq!(*boxed, 1);
+    }
+
+    #[test]
+    fn boxed_s_macro() {
+        let _boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_usize);
+    }
+
+    #[cfg(feature = "coerce_unsized")]
+    #[test]
+    fn coerce_unsized() {
+        let _boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_usize);
+    }
+
+    #[test]
+    fn zst() {
+        let mut boxed = BoxS::<(), [usize; 0]>::new(());
+        assert_eq!(*boxed, ());
+        *boxed = ();
+    }
+
+    #[test]
+    fn drop() {
+        struct Foo<'a>(&'a AtomicBool);
+        impl Drop for Foo<'_> {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let dropped = AtomicBool::new(false);
+        let foo = Foo(&dropped);
+        let boxed = BoxS::<_, [usize; 1]>::new(foo);
+        assert!(!dropped.load(Ordering::Relaxed));
+        mem::drop(boxed);
+        assert!(dropped.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn any() {
+        let boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_usize);
+        assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
+        let boxed: BoxS<dyn Any + Send, [usize; 1]> = boxed_s!(0_usize);
+        assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
+    }
+
+    #[test]
+    fn slice() {
+        let boxed: BoxS<[u8], [usize; 1]> = boxed_s!([0_u8; 4]);
+        assert_eq!(&*boxed, &[0_u8; 4][..]);
+    }
 }

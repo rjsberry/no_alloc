@@ -40,28 +40,32 @@ where
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use core::any::Any;
 /// use core::mem::size_of;
 ///
-/// use heapless::pool;
+/// use heapless::{pool, pool::singleton::Pool};
 /// use no_ptr::{boxed, Box};
 ///
 /// pool!(P: [usize; 1]);
 ///
-/// static mut MEMORY: [u8; 256] = [0; 256];
-/// assert!(P::grow(unsafe { &mut MEMORY }) >= 1);
+/// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
+/// assert!(P::grow(unsafe { &mut MEMORY }) == 1);
 ///
 /// let boxed: Box<dyn Any, P> = boxed!(0_isize).unwrap();
-/// assert!(boxed!(0_isize).is_err());
 /// ```
 #[cfg_attr(rustdoc, doc(cfg(feature = "pool")))]
 #[macro_export]
 macro_rules! boxed {
     ($val:expr) => {{
-        let mut val = $val;
-        let ptr = &mut val as *mut _;
-        unsafe { $crate::Box::__new(val, ptr) }
+        let val = $val;
+        let ptr = &val as *const _ as *const _;
+        if let Some(boxed) = unsafe { $crate::Box::__new(&val, ptr) } {
+            ::core::mem::forget(val);
+            Ok(boxed)
+        } else {
+            Err(val)
+        }
     }};
 }
 
@@ -69,46 +73,58 @@ macro_rules! boxed {
     impl Box
 */
 
-#[cfg(feature = "pool")]
 impl<T, P> Box<T, P>
 where
     P: Pool,
     P::Data: Memory,
 {
-    /// Acquires memory on the stack and places `x` into it.
+    /// Attempts to acquire a memory block from the global pool, and places `x`
+    /// into it.
     ///
-    /// The acquired memory is backed by `N`. If the size or alignment of `T`
-    /// is greater than that of `N` the box cannot be constructed. `T` will be
-    /// returned in the error variant.
+    /// If the pool is exhausted then `x` will be returned as an error.
     ///
-    /// If `T` is zero-sized then no memory is required; `N` may also be zero
-    /// sized in this case.
+    /// If `T` is zero-sized then no memory is required; `P::Data` may also be
+    /// zero sized in this case.
     ///
     /// # Examples
     ///
     /// Creating a boxed value:
     ///
     /// ```
-    /// use no_ptr::BoxS;
+    /// use core::mem::size_of;
     ///
-    /// let boxed: BoxS<isize, [usize; 1]> = BoxS::new(0);
+    /// use heapless::{pool, pool::singleton::Pool};
+    /// use no_ptr::Box;
+    ///
+    /// pool!(P: [usize; 1]);
+    /// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
+    /// assert!(P::grow(unsafe { &mut MEMORY }) >= 1);
+    ///
+    /// let boxed: Box<isize, P> = Box::new(0).unwrap();
     /// ```
     ///
     /// Creating a boxed ZST (zero-sized type):
     ///
     /// ```
-    /// use no_ptr::BoxS;
+    /// use heapless::{pool, pool::singleton::Pool};
+    /// use no_ptr::Box;
     ///
-    /// let boxed: BoxS<(), [usize; 0]> = BoxS::new(());
+    /// pool!(P: [usize; 0]);
+    ///
+    /// // We don't need to grow P at all, our data is zero sized
+    /// let boxed: Box<(), P> = Box::new(()).unwrap();
     /// ```
     ///
     /// Failing to create a boxed value due to size error (this results in a
     /// _compile_ error):
     ///
     /// ```compile_fail
-    /// use no_ptr::BoxS;
+    /// use heapless::{pool, pool::singleton::Pool};
+    /// use no_ptr::Box;
     ///
-    /// let _impossible = BoxS::<isize, [u8; 0]>::new(0);
+    /// pool!(P: [usize; 0]);
+    ///
+    /// let _impossible = Box::<isize, P>::new(0).unwrap();
     /// ```
     ///
     /// Failing to create a boxed value due to alignment error (this results
@@ -116,9 +132,13 @@ where
     ///
     /// ```compile_fail
     /// use core::mem::size_of;
-    /// use no_ptr::BoxS;
     ///
-    /// let _impossible = BoxS::<isize, [u8; size_of::<isize>()]>::new(0);
+    /// use heapless::{pool, pool::singleton::Pool};
+    /// use no_ptr::Box;
+    ///
+    /// pool!(P: [u8; size_of::<isize>()]);
+    ///
+    /// let _impossible = Box::<isize, P>::new(0).unwrap();
     /// ```
     ///
     /// Coercing to a boxed DST (dynamically-sized type) (requires the
@@ -126,11 +146,17 @@ where
     ///
     /// ```
     /// use core::any::Any;
-    /// use no_ptr::BoxS;
+    /// use core::mem::size_of;
+    ///
+    /// use heapless::{pool, pool::singleton::Pool};
+    /// use no_ptr::Box;
+    ///
+    /// pool!(P: [usize; 1]);
+    /// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
     ///
     /// # #[cfg(feature = "coerce_unsized")]
     /// # {
-    /// let boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_isize);
+    /// let boxed: Box<dyn Any, P> = Box::new(0_isize).unwrap();
     /// # }
     /// ```
     pub fn new(x: T) -> Result<Self, T> {
@@ -138,7 +164,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> Box<T, P>
 where
     T: ?Sized,
@@ -146,25 +171,23 @@ where
     P::Data: Memory,
 {
     #[doc(hidden)]
-    pub unsafe fn __new<U>(val: U, ptr: *mut T) -> Result<Self, U> {
+    pub unsafe fn __new<U>(val: &U, ptr: *const T) -> Option<Self> {
         let _ = StaticAssertions::<T, U, P::Data>::new();
-        if let Some(boxed) = Box::<T, P>::from_ptrs(&val, ptr) {
-            mem::forget(val);
-            Ok(boxed)
-        } else {
-            Err(val)
-        }
+        let extra = crate::__retrieve_extra_addr(ptr);
+        Box::<T, P>::from_ptr(val, extra)
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> Box<T, P>
 where
     T: ?Sized,
     P: Pool,
     P::Data: Memory,
 {
-    unsafe fn from_ptrs<U: ?Sized>(ptr_u: *const U, ptr_t: *mut T) -> Option<Self> {
+    unsafe fn from_ptr<U>(ptr_u: &U, extra: Option<usize>) -> Option<Self>
+    where
+        U: ?Sized,
+    {
         let mut buf = P::alloc().map(|block| {
             // Ideally we want to be able to use `MaybeUninit::uninit` here.
             // However, there is currently no way to go from an initialized
@@ -176,10 +199,22 @@ where
             ManuallyDrop::new(block.init(MaybeUninit::zeroed().assume_init()))
         })?;
         let dst: *mut u8 = &mut **buf as *mut P::Data as *mut _;
-        ptr::copy_nonoverlapping(ptr_u as *const u8, dst, mem::size_of_val(&*ptr_u));
+        ptr::copy_nonoverlapping(
+            ptr_u as *const _ as *const u8,
+            dst,
+            mem::size_of_val::<U>(&ptr_u),
+        );
+
+        let mut ptr = MaybeUninit::uninit();
+        let ptr_ptr: *mut usize = ptr.as_mut_ptr() as *mut _;
+        if let Some(addr) = extra {
+            ptr_ptr.add(1).write(addr);
+        }
+        ptr_ptr.write(0);
+
         Some(Self {
             buf,
-            ptr: write_ptr_addr(ptr_t, 0),
+            ptr: ptr.assume_init(),
         })
     }
 
@@ -202,7 +237,6 @@ where
 {
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> ops::Deref for Box<T, P>
 where
     T: ?Sized,
@@ -216,7 +250,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> ops::DerefMut for Box<T, P>
 where
     T: ?Sized,
@@ -228,7 +261,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> Drop for Box<T, P>
 where
     T: ?Sized,
@@ -243,7 +275,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> fmt::Debug for Box<T, P>
 where
     T: ?Sized + fmt::Debug,
@@ -255,7 +286,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> fmt::Display for Box<T, P>
 where
     T: ?Sized + fmt::Display,
@@ -267,7 +297,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 impl<T, P> fmt::Pointer for Box<T, P>
 where
     T: ?Sized,
@@ -279,7 +308,6 @@ where
     }
 }
 
-#[cfg(feature = "pool")]
 unsafe impl<T, P> Send for Box<T, P>
 where
     T: ?Sized + Send,
@@ -288,11 +316,81 @@ where
 {
 }
 
-#[cfg(feature = "pool")]
 unsafe impl<T, P> Sync for Box<T, P>
 where
     T: ?Sized + Sync,
     P: Pool,
     P::Data: Memory,
 {
+}
+
+/*
+    Unit tests
+*/
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    use heapless::{pool, pool::singleton::Pool};
+
+    #[test]
+    fn smoke() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 32] = [0; 32];
+        assert!(P::grow(unsafe { &mut DATA }) >= 1);
+        let mut boxed = Box::<usize, P>::new(0).unwrap();
+        assert_eq!(*boxed, 0);
+        *boxed = 1;
+        assert_eq!(*boxed, 1);
+    }
+
+    #[test]
+    fn boxed_macro() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 32] = [0; 32];
+        assert!(P::grow(unsafe { &mut DATA }) >= 1);
+        let _boxed: Box<dyn Any, P> = boxed!(0_usize).unwrap();
+    }
+
+    #[cfg(feature = "coerce_unsized")]
+    #[test]
+    fn coerce_unsized() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 32] = [0; 32];
+        assert!(P::grow(unsafe { &mut DATA }) >= 1);
+        let _boxed: Box<dyn Any, P> = Box::new(0_usize).unwrap();
+    }
+
+    #[test]
+    fn zst() {
+        pool!(P: [usize; 0]);
+        let mut boxed = Box::<(), P>::new(()).unwrap();
+        assert_eq!(*boxed, ());
+        *boxed = ();
+    }
+
+    #[test]
+    fn drop() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 2 * mem::size_of::<usize>()] = [0; 2 * mem::size_of::<usize>()];
+        assert!(P::grow(unsafe { &mut DATA }) >= 1);
+
+        #[derive(Debug)]
+        struct Foo<'a>(&'a AtomicBool);
+        impl Drop for Foo<'_> {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let dropped = AtomicBool::new(false);
+        let foo = Foo(&dropped);
+        let boxed = Box::<_, P>::new(foo).unwrap();
+        assert!(!dropped.load(Ordering::Relaxed));
+        mem::drop(boxed);
+        assert!(dropped.load(Ordering::Relaxed));
+    }
 }

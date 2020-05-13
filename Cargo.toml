@@ -2,10 +2,18 @@
 name = "no_ptr"
 version = "0.0.0"
 authors = ["Richard Berry <rjsberry@pm.me>"]
+license = "Apache-2.0/MIT"
+description = "Smart-pointer like types for embedded applications without allocators"
+documentation = "https://docs.rs/no_ptr"
+homepage =      "https://github.com/rjsberry/no_ptr"
+repository =    "https://github.com/rjsberry/no_ptr"
+readme =        "README.md"
 edition = "2018"
 
 [features]
 default = []
+coerce_unsized = []
+const_generics = []
 pool = ["heapless"]
 
 [dependencies]
