@@ -1,0 +1,21 @@
+[package]
+name = "no_ptr-san"
+version = "0.0.0"
+authors = ["Richard Berry <rjsberry@pm.me>"]
+edition = "2018"
+
+[dependencies.heapless]
+version = "^0.5.5"
+features = ["x86-sync-pool"]
+
+[dependencies.no_ptr]
+path = ".."
+features = ["pool"]
+
+[[bin]]
+name = "box_s"
+path = "box_s.rs"
+
+[[bin]]
+name = "box"
+path = "box.rs"

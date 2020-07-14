@@ -1,5 +1,7 @@
 use crate::assert::StaticAssertions;
-use crate::mem::{write_ptr_addr, Memory};
+use crate::mem::Memory;
+use crate::ptr::write_addr;
+use crate::raw::FatPointer;
 
 use core::any::Any;
 use core::fmt;
@@ -58,9 +60,9 @@ where
 #[macro_export]
 macro_rules! boxed {
     ($val:expr) => {{
-        let val = $val;
-        let ptr = &val as *const _ as *const _;
-        if let Some(boxed) = unsafe { $crate::Box::__new(&val, ptr) } {
+        let mut val = $val;
+        let ptr = &mut val as *mut _;
+        if let Some(boxed) = unsafe { $crate::Box::__new(&mut val, ptr) } {
             ::core::mem::forget(val);
             Ok(boxed)
         } else {
@@ -153,6 +155,7 @@ where
     ///
     /// pool!(P: [usize; 1]);
     /// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
+    /// assert!(P::grow(unsafe { &mut MEMORY }) >= 1);
     ///
     /// # #[cfg(feature = "coerce_unsized")]
     /// # {
@@ -164,17 +167,89 @@ where
     }
 }
 
-impl<T, P> Box<T, P>
+impl<P> Box<dyn Any + 'static, P>
 where
-    T: ?Sized,
     P: Pool,
     P::Data: Memory,
 {
-    #[doc(hidden)]
-    pub unsafe fn __new<U>(val: &U, ptr: *const T) -> Option<Self> {
-        let _ = StaticAssertions::<T, U, P::Data>::new();
-        let extra = crate::__retrieve_extra_addr(ptr);
-        Box::<T, P>::from_ptr(val, extra)
+    /// Attempts to downcast the box to a concrete type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::any::Any;
+    /// use core::fmt;
+    ///
+    /// use heapless::pool::singleton::Pool;
+    /// use no_ptr::{Box, Memory};
+    ///
+    /// fn write_if_str<W, P>(
+    ///     mut wtr: W,
+    ///     boxed: Box<dyn Any + 'static, P>
+    /// ) -> fmt::Result
+    /// where
+    ///     W: fmt::Write,
+    ///     P: Pool,
+    ///     P::Data: Memory,
+    /// {
+    ///     if let Ok(s) = boxed.downcast::<&str>() {
+    ///         wtr.write_str(&s)?;
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn downcast<T>(self) -> Result<Box<T, P>, Self>
+    where
+        T: Any,
+    {
+        if self.is::<T>() {
+            Ok(unsafe { self.downcast_unchecked() })
+        } else {
+            Err(self)
+        }
+    }
+}
+
+impl<P> Box<dyn Any + Send + 'static, P>
+where
+    P: Pool,
+    P::Data: Memory,
+{
+    /// Attempts to downcast the box to a concrete type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::any::Any;
+    /// use core::fmt;
+    ///
+    /// use heapless::pool::singleton::Pool;
+    /// use no_ptr::{Box, Memory};
+    ///
+    /// fn write_if_str<W, P>(
+    ///     mut wtr: W,
+    ///     boxed: Box<dyn Any + Send + 'static, P>
+    /// ) -> fmt::Result
+    /// where
+    ///     W: fmt::Write,
+    ///     P: Pool,
+    ///     P::Data: Memory,
+    /// {
+    ///     if let Ok(s) = boxed.downcast::<&str>() {
+    ///         wtr.write_str(&s)?;
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn downcast<T>(self) -> Result<Box<T, P>, Self>
+    where
+        T: Any,
+    {
+        if self.is::<T>() {
+            Ok(unsafe { self.downcast_unchecked() })
+        } else {
+            Err(self)
+        }
     }
 }
 
@@ -184,7 +259,20 @@ where
     P: Pool,
     P::Data: Memory,
 {
-    unsafe fn from_ptr<U>(ptr_u: &U, extra: Option<usize>) -> Option<Self>
+    #[doc(hidden)]
+    pub unsafe fn __new<U>(val: &mut U, ptr: *mut T) -> Option<Self> {
+        let _ = StaticAssertions::<T, U, P::Data>::new();
+        Box::<T, P>::from_ptr(val, FatPointer::from_raw(ptr).map(|fat| fat.meta))
+    }
+}
+
+impl<T, P> Box<T, P>
+where
+    T: ?Sized,
+    P: Pool,
+    P::Data: Memory,
+{
+    unsafe fn from_ptr<U>(ptr_u: &mut U, meta: Option<usize>) -> Option<Self>
     where
         U: ?Sized,
     {
@@ -198,6 +286,7 @@ where
             // SAFETY: Pool::Data implements `Memory`; zeroing is a valid init.
             ManuallyDrop::new(block.init(MaybeUninit::zeroed().assume_init()))
         })?;
+
         let dst: *mut u8 = &mut **buf as *mut P::Data as *mut _;
         ptr::copy_nonoverlapping(
             ptr_u as *const _ as *const u8,
@@ -205,12 +294,11 @@ where
             mem::size_of_val::<U>(&ptr_u),
         );
 
-        let mut ptr = MaybeUninit::uninit();
+        let mut ptr = MaybeUninit::zeroed();
         let ptr_ptr: *mut usize = ptr.as_mut_ptr() as *mut _;
-        if let Some(addr) = extra {
-            ptr_ptr.add(1).write(addr);
+        if let Some(meta) = meta {
+            ptr_ptr.add(1).write(meta);
         }
-        ptr_ptr.write(0);
 
         Some(Self {
             buf,
@@ -219,11 +307,21 @@ where
     }
 
     fn as_ptr(&self) -> *const T {
-        unsafe { write_ptr_addr(self.ptr, &**self.buf as *const P::Data as _) }
+        write_addr(self.ptr, &**self.buf as *const P::Data as _)
     }
 
     fn as_mut_ptr(&mut self) -> *mut T {
-        unsafe { write_ptr_addr(self.ptr, &mut **self.buf as *mut P::Data as _) }
+        write_addr(self.ptr, &mut **self.buf as *mut P::Data as _)
+    }
+
+    unsafe fn downcast_unchecked<U: Any>(mut self) -> Box<U, P> {
+        let Self { ref mut buf, ptr } = self;
+        let buf = ManuallyDrop::new(ManuallyDrop::take(buf));
+        mem::forget(self);
+        Box {
+            buf,
+            ptr: ptr as *mut _,
+        }
     }
 }
 
@@ -392,5 +490,27 @@ mod tests {
         assert!(!dropped.load(Ordering::Relaxed));
         mem::drop(boxed);
         assert!(dropped.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn any() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 4 * mem::size_of::<usize>()] = [0; 4 * mem::size_of::<usize>()];
+        assert!(P::grow(unsafe { &mut DATA }) >= 2);
+
+        let boxed: Box<dyn Any, P> = boxed!(0_usize).unwrap();
+        assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
+        let boxed: Box<dyn Any + Send, P> = boxed!(0_usize).unwrap();
+        assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
+    }
+
+    #[test]
+    fn slice() {
+        pool!(P: [usize; 1]);
+        static mut DATA: [u8; 2 * mem::size_of::<usize>()] = [0; 2 * mem::size_of::<usize>()];
+        assert!(P::grow(unsafe { &mut DATA }) >= 1);
+
+        let boxed: Box<[u8], P> = boxed!([0_u8; 4]).unwrap();
+        assert_eq!(&*boxed, &[0_u8; 4][..]);
     }
 }
