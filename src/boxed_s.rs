@@ -1,5 +1,7 @@
 use crate::assert::StaticAssertions;
-use crate::mem::{write_ptr_addr, Memory};
+use crate::mem::Memory;
+use crate::ptr::write_addr;
+use crate::raw::FatPointer;
 
 use core::any::Any;
 use core::fmt;
@@ -50,9 +52,9 @@ where
 #[macro_export]
 macro_rules! boxed_s {
     ($val:expr) => {{
-        let val = $val;
-        let ptr = &val as *const _;
-        let boxed = unsafe { $crate::BoxS::__new(&val, ptr) };
+        let mut val = $val;
+        let ptr = &mut val as *mut _;
+        let boxed = unsafe { $crate::BoxS::__new(&mut val, ptr) };
         ::core::mem::forget(val);
         boxed
     }};
@@ -280,11 +282,9 @@ where
     M: Memory,
 {
     #[doc(hidden)]
-    pub unsafe fn __new<U>(val: &U, ptr: *const T) -> Self {
+    pub unsafe fn __new<U>(val: &mut U, ptr: *mut T) -> Self {
         let _ = StaticAssertions::<T, U, M>::new();
-        let extra = crate::__retrieve_extra_addr(ptr);
-        let boxed = BoxS::<T, M>::from_ptr(val, extra);
-        boxed
+        BoxS::<T, M>::from_ptr(val, FatPointer::from_raw(ptr).map(|fat| fat.meta))
     }
 }
 
@@ -305,12 +305,11 @@ where
             mem::size_of_val::<U>(&ptr_u),
         );
 
-        let mut ptr = MaybeUninit::uninit();
+        let mut ptr = MaybeUninit::zeroed();
         let ptr_ptr: *mut usize = ptr.as_mut_ptr() as *mut _;
         if let Some(addr) = extra {
             ptr_ptr.add(1).write(addr);
         }
-        ptr_ptr.write(0);
 
         Self {
             buf: ManuallyDrop::new(buf.assume_init()),
@@ -319,18 +318,21 @@ where
     }
 
     fn as_ptr(&self) -> *const T {
-        unsafe { write_ptr_addr(self.ptr, &*self.buf as *const M as _) }
+        write_addr(self.ptr, &*self.buf as *const M as _)
     }
 
     fn as_mut_ptr(&mut self) -> *mut T {
-        unsafe { write_ptr_addr(self.ptr, &mut *self.buf as *mut M as _) }
+        write_addr(self.ptr, &mut *self.buf as *mut M as _)
     }
 
     unsafe fn downcast_unchecked<U: Any>(mut self) -> BoxS<U, M> {
-        let buf = mem::replace(&mut self.buf, MaybeUninit::uninit().assume_init());
-        let ptr = self.ptr as *mut _;
+        let Self { ref mut buf, ptr } = self;
+        let buf = ManuallyDrop::new(ManuallyDrop::take(buf));
         mem::forget(self);
-        BoxS { buf, ptr }
+        BoxS {
+            buf,
+            ptr: ptr as *mut _,
+        }
     }
 }
 
