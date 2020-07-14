@@ -110,15 +110,16 @@
 mod assert;
 mod boxed_s;
 mod mem;
+mod ptr;
+mod raw;
 
 pub use boxed_s::BoxS;
 pub use mem::Memory;
 
-#[doc(hidden)]
-pub use mem::retrieve_extra_addr as __retrieve_extra_addr;
-
 #[cfg(feature = "pool")]
+#[cfg_attr(rustdoc, doc(cfg(feature = "pool")))]
 mod boxed;
 
 #[cfg(feature = "pool")]
+#[cfg_attr(rustdoc, doc(cfg(feature = "pool")))]
 pub use boxed::Box;
