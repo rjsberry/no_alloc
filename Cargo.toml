@@ -1,14 +1,18 @@
 [package]
-name = "no_ptr"
-version = "0.0.0"
-authors = ["Richard Berry <rjsberry@pm.me>"]
-license = "Apache-2.0/MIT"
-description = "Smart-pointer like types for embedded applications without allocators"
+name          = "no_ptr"
+version       = "0.0.0"
+authors       = ["Richard Berry <rjsberry@pm.me>"]
+license       = "Unlicense/0BSD"
+description   = "Smart-pointer like types for embedded applications without allocators"
 documentation = "https://docs.rs/no_ptr"
-homepage =      "https://github.com/rjsberry/no_ptr"
-repository =    "https://github.com/rjsberry/no_ptr"
-readme =        "README.md"
-edition = "2018"
+homepage      = "https://github.com/rjsberry/no_ptr"
+repository    = "https://github.com/rjsberry/no_ptr"
+exclude       = ["ci", "san"]
+readme        = "README.md"
+edition       = "2018"
+
+[workspace]
+members = ["san"]
 
 [features]
 default = []
@@ -21,3 +25,11 @@ heapless = { version = "^0.5.5", optional = true }
 
 [dev-dependencies]
 heapless = { version = "^0.5.5", features = ["x86-sync-pool"] }
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true
