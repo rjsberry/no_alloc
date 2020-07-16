@@ -1,4 +1,4 @@
-/// Defines the types of backing storage for `no_ptr` smart pointers.
+/// Defines the types of backing storage for `no_alloc` smart pointers.
 ///
 /// Backing memory will need to be carefully selected so that it has sufficient
 /// size and the correct alignment for the type you need to store.

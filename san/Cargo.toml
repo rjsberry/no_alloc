@@ -1,5 +1,5 @@
 [package]
-name = "no_ptr-san"
+name = "no_alloc-san"
 version = "0.0.0"
 authors = ["Richard Berry <rjsberry@pm.me>"]
 edition = "2018"
@@ -8,7 +8,7 @@ edition = "2018"
 version = "^0.5.5"
 features = ["x86-sync-pool"]
 
-[dependencies.no_ptr]
+[dependencies.no_alloc]
 path = ".."
 features = ["pool"]
 
