@@ -1,4 +1,4 @@
-use no_ptr::{boxed_s, BoxS};
+use no_alloc::{boxed_s, BoxS};
 
 fn main() {
     let mut boxed: BoxS<isize, [usize; 1]> = boxed_s!(0_isize);
