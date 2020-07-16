@@ -47,7 +47,7 @@ where
 /// use core::mem::size_of;
 ///
 /// use heapless::{pool, pool::singleton::Pool};
-/// use no_ptr::{boxed, Box};
+/// use no_alloc::{boxed, Box};
 ///
 /// pool!(P: [usize; 1]);
 ///
@@ -96,7 +96,7 @@ where
     /// use core::mem::size_of;
     ///
     /// use heapless::{pool, pool::singleton::Pool};
-    /// use no_ptr::Box;
+    /// use no_alloc::Box;
     ///
     /// pool!(P: [usize; 1]);
     /// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
@@ -109,7 +109,7 @@ where
     ///
     /// ```
     /// use heapless::{pool, pool::singleton::Pool};
-    /// use no_ptr::Box;
+    /// use no_alloc::Box;
     ///
     /// pool!(P: [usize; 0]);
     ///
@@ -122,7 +122,7 @@ where
     ///
     /// ```compile_fail
     /// use heapless::{pool, pool::singleton::Pool};
-    /// use no_ptr::Box;
+    /// use no_alloc::Box;
     ///
     /// pool!(P: [usize; 0]);
     ///
@@ -136,7 +136,7 @@ where
     /// use core::mem::size_of;
     ///
     /// use heapless::{pool, pool::singleton::Pool};
-    /// use no_ptr::Box;
+    /// use no_alloc::Box;
     ///
     /// pool!(P: [u8; size_of::<isize>()]);
     ///
@@ -151,7 +151,7 @@ where
     /// use core::mem::size_of;
     ///
     /// use heapless::{pool, pool::singleton::Pool};
-    /// use no_ptr::Box;
+    /// use no_alloc::Box;
     ///
     /// pool!(P: [usize; 1]);
     /// static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
@@ -181,7 +181,7 @@ where
     /// use core::fmt;
     ///
     /// use heapless::pool::singleton::Pool;
-    /// use no_ptr::{Box, Memory};
+    /// use no_alloc::{Box, Memory};
     ///
     /// fn write_if_str<W, P>(
     ///     mut wtr: W,
@@ -224,7 +224,7 @@ where
     /// use core::fmt;
     ///
     /// use heapless::pool::singleton::Pool;
-    /// use no_ptr::{Box, Memory};
+    /// use no_alloc::{Box, Memory};
     ///
     /// fn write_if_str<W, P>(
     ///     mut wtr: W,

@@ -45,7 +45,7 @@ where
 ///
 /// ```
 /// use core::any::Any;
-/// use no_ptr::{boxed_s, BoxS};
+/// use no_alloc::{boxed_s, BoxS};
 ///
 /// let boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_isize);
 /// ```
@@ -155,7 +155,7 @@ where
     /// Creating a boxed value:
     ///
     /// ```
-    /// use no_ptr::BoxS;
+    /// use no_alloc::BoxS;
     ///
     /// let boxed: BoxS<isize, [usize; 1]> = BoxS::new(0);
     /// ```
@@ -163,7 +163,7 @@ where
     /// Creating a boxed ZST (zero-sized type):
     ///
     /// ```
-    /// use no_ptr::BoxS;
+    /// use no_alloc::BoxS;
     ///
     /// let boxed: BoxS<(), [usize; 0]> = BoxS::new(());
     /// ```
@@ -172,7 +172,7 @@ where
     /// _compile_ error):
     ///
     /// ```compile_fail
-    /// use no_ptr::BoxS;
+    /// use no_alloc::BoxS;
     ///
     /// let _impossible = BoxS::<isize, [u8; 0]>::new(0);
     /// ```
@@ -182,7 +182,7 @@ where
     ///
     /// ```compile_fail
     /// use core::mem::size_of;
-    /// use no_ptr::BoxS;
+    /// use no_alloc::BoxS;
     ///
     /// let _impossible = BoxS::<isize, [u8; size_of::<isize>()]>::new(0);
     /// ```
@@ -192,7 +192,7 @@ where
     ///
     /// ```
     /// use core::any::Any;
-    /// use no_ptr::BoxS;
+    /// use no_alloc::BoxS;
     ///
     /// # #[cfg(feature = "coerce_unsized")]
     /// # {
@@ -216,7 +216,7 @@ where
     /// use core::any::Any;
     /// use core::fmt;
     ///
-    /// use no_ptr::{BoxS, Memory};
+    /// use no_alloc::{BoxS, Memory};
     ///
     /// fn write_if_str<W: fmt::Write, M: Memory>(
     ///     mut wtr: W,
@@ -252,7 +252,7 @@ where
     /// use core::any::Any;
     /// use core::fmt;
     ///
-    /// use no_ptr::{BoxS, Memory};
+    /// use no_alloc::{BoxS, Memory};
     ///
     /// fn write_if_str<W: fmt::Write, M: Memory>(
     ///     mut wtr: W,
