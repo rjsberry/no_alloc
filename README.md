@@ -1,3 +1,4 @@
-# _no_ptr_
+# _no_alloc_
 
-> Embedded friendly pointer-like types for `no_std` applications without allocators.
+> Embedded friendly pointer types for `no_std` applications without heap
+> allocators.

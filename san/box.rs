@@ -1,7 +1,7 @@
 use core::mem::size_of;
 
 use heapless::{pool, pool::singleton::Pool};
-use no_ptr::{boxed, Box};
+use no_alloc::{boxed, Box};
 
 pool!(P: [usize; 1]);
 static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];

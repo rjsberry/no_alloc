@@ -1,9 +1,9 @@
-//! Embedded friendly smart pointers for `no_std` applications without heap
+//! Embedded friendly pointer types for `no_std` applications without heap
 //! allocators.
 //!
 //! # Usage
 //!
-//! `no_ptr` can be used to create boxes for dynamically sized types without
+//! `no_alloc` can be used to create boxes for dynamically sized types without
 //! heap allocation:
 //!
 //! ```ignore
@@ -13,7 +13,7 @@
 //! use core::any::Any;
 //!
 //! use cortex_m_rt::entry;
-//! use no_ptr::{boxed_s, BoxS};
+//! use no_alloc::{boxed_s, BoxS};
 //!
 //! #[entry]
 //! fn main() -> ! {
@@ -31,7 +31,7 @@
 //!
 //! ```compile_fail
 //! use core::any::Any;
-//! use no_ptr::BoxS;
+//! use no_alloc::BoxS;
 //!
 //! let _impossible: BoxS<dyn Any, [usize; 0]> = boxed_s!(0_isize);
 //! ```
@@ -42,7 +42,7 @@
 //!
 //! # Dependencies
 //!
-//! `no_ptr` has no runtime dependencies.
+//! `no_alloc` has no runtime dependencies.
 //!
 //! [`heapless`] can be optionally brought in to add support for boxes backed by
 //! global memory pools by activating the `pool` feature.
@@ -62,7 +62,7 @@
 //!   # #[cfg(feature = "coerce_unsized")]
 //!   # {
 //!   use core::any::Any;
-//!   use no_ptr::BoxS;
+//!   use no_alloc::BoxS;
 //!
 //!   let boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_isize);
 //!   # }
@@ -90,7 +90,7 @@
 //!
 //! # Safety
 //!
-//! Safety is paramount to `no_ptr`.
+//! Safety is paramount to `no_alloc`.
 //!
 //! It works on top of a lot of unsafe code, but the exposed APIs are 100% safe.
 //!
