@@ -44,11 +44,6 @@
 //!
 //! `no_alloc` has no runtime dependencies.
 //!
-//! [`heapless`] can be optionally brought in to add support for boxes backed by
-//! global memory pools by activating the `pool` feature.
-//!
-//! [`heapless`]: https://docs.rs/heapless
-//!
 //! # Features
 //!
 //! * `coerce_unsized`
@@ -107,19 +102,29 @@
 #![cfg_attr(feature = "coerce_unsized", feature(coerce_unsized, unsize))]
 #![cfg_attr(feature = "const_generics", feature(const_generics))]
 
+mod allocator;
 mod assert;
+mod assert_unsync_safe;
+mod boxed;
 mod boxed_s;
+mod capacity_error;
+mod global_allocator;
+mod layout;
 mod mem;
+mod pad_to_alignment;
 mod ptr;
 mod raw;
+mod static_buf;
+mod unsync_linear_allocator;
 
-pub use boxed_s::BoxS;
-pub use mem::Memory;
+use pad_to_alignment::PadToAlignment;
 
-#[cfg(feature = "pool")]
-#[cfg_attr(rustdoc, doc(cfg(feature = "pool")))]
-mod boxed;
-
-#[cfg(feature = "pool")]
-#[cfg_attr(rustdoc, doc(cfg(feature = "pool")))]
+pub use allocator::Allocator;
+pub use assert_unsync_safe::AssertUnsyncSafe;
 pub use boxed::Box;
+pub use boxed_s::BoxS;
+pub use capacity_error::CapacityError;
+pub use global_allocator::GlobalAllocator;
+pub use layout::Layout;
+pub use mem::Memory;
+pub use unsync_linear_allocator::UnsyncLinearAllocator;

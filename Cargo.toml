@@ -19,13 +19,6 @@ members = ["san"]
 default = []
 coerce_unsized = []
 const_generics = []
-pool = ["heapless"]
-
-[dependencies]
-heapless = { version = "^0.5.5", optional = true }
-
-[dev-dependencies]
-heapless = { version = "^0.5.5", features = ["x86-sync-pool"] }
 
 [profile.dev]
 panic = "abort"

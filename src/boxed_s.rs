@@ -80,9 +80,7 @@ where
 {
     type Target = T;
 
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.as_ptr() }
-    }
+    fn deref(&self) -> &Self::Target { unsafe { &*self.as_ptr() } }
 }
 
 impl<T, M> ops::DerefMut for BoxS<T, M>
@@ -199,9 +197,7 @@ where
     /// let boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_isize);
     /// # }
     /// ```
-    pub fn new(x: T) -> Self {
-        boxed_s!(x)
-    }
+    pub fn new(x: T) -> Self { boxed_s!(x) }
 }
 
 impl<M> BoxS<dyn Any + 'static, M>
@@ -284,7 +280,10 @@ where
     #[doc(hidden)]
     pub unsafe fn __new<U>(val: &mut U, ptr: *mut T) -> Self {
         let _ = StaticAssertions::<T, U, M>::new();
-        BoxS::<T, M>::from_ptr(val, FatPointer::from_raw(ptr).map(|fat| fat.meta))
+        BoxS::<T, M>::from_ptr(
+            val,
+            FatPointer::from_raw(ptr).map(|fat| fat.meta),
+        )
     }
 }
 
@@ -329,10 +328,7 @@ where
         let Self { ref mut buf, ptr } = self;
         let buf = ManuallyDrop::new(ManuallyDrop::take(buf));
         mem::forget(self);
-        BoxS {
-            buf,
-            ptr: ptr as *mut _,
-        }
+        BoxS { buf, ptr: ptr as *mut _ }
     }
 }
 
@@ -391,9 +387,7 @@ mod tests {
     fn drop() {
         struct Foo<'a>(&'a AtomicBool);
         impl Drop for Foo<'_> {
-            fn drop(&mut self) {
-                self.0.store(true, Ordering::Relaxed);
-            }
+            fn drop(&mut self) { self.0.store(true, Ordering::Relaxed); }
         }
 
         let dropped = AtomicBool::new(false);

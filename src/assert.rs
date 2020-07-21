@@ -1,7 +1,9 @@
 use core::marker::PhantomData;
 use core::mem;
 
-pub(crate) struct StaticAssertions<T: ?Sized, U, M>(PhantomData<(*mut T, U, M)>);
+pub(crate) struct StaticAssertions<T: ?Sized, U, M>(
+    PhantomData<(*mut T, U, M)>,
+);
 
 impl<T: ?Sized, U, M> StaticAssertions<T, U, M> {
     const SIZE_CHECK: usize = 0 - !(

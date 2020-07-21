@@ -1,14 +1,20 @@
-use core::mem::size_of;
+use core::mem;
 
-use heapless::{pool, pool::singleton::Pool};
-use no_alloc::{boxed, Box};
+use no_alloc::{
+    boxed, global_allocator, static_buf, AssertUnsyncSafe, Box, GlobalAllocator,
+    UnsyncLinearAllocator,
+};
 
-pool!(P: [usize; 1]);
-static mut MEMORY: [u8; 2 * size_of::<usize>()] = [0; 2 * size_of::<usize>()];
+global_allocator! {
+    type A = AssertUnsyncSafe<UnsyncLinearAllocator>;
+    const unsafe fn init() -> A {
+        AssertUnsyncSafe::new(UnsyncLinearAllocator::uninit())
+    }
+}
 
 fn main() {
-    assert!(unsafe { P::grow(&mut MEMORY) } >= 1);
-    let mut boxed: Box<isize, P> = boxed!(0_isize).unwrap();
+    A::static_ref().init(static_buf![0; 2 * mem::size_of::<i32>() - 1]);
+    let mut boxed: Box<i32, A> = boxed!(0_i32).unwrap();
     assert_eq!(*boxed, 0);
     *boxed += 1;
     assert_eq!(*boxed, 1);

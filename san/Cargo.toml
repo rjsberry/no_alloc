@@ -4,13 +4,8 @@ version = "0.0.0"
 authors = ["Richard Berry <rjsberry@pm.me>"]
 edition = "2018"
 
-[dependencies.heapless]
-version = "^0.5.5"
-features = ["x86-sync-pool"]
-
 [dependencies.no_alloc]
 path = ".."
-features = ["pool"]
 
 [[bin]]
 name = "box_s"
