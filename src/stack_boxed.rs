@@ -15,7 +15,7 @@ use core::marker::Unsize;
 use core::ops::CoerceUnsized;
 
 /// A box that exists entirely on the stack.
-pub struct BoxS<T, M>
+pub struct StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -31,13 +31,13 @@ where
 ///
 /// For more info, see [#27732].
 ///
-/// Note that just like [`BoxS::new`] the space and alignment demands for the
+/// Note that just like [`StackBox::new`] the space and alignment demands for the
 /// box are evaluated at compile time. Attempting to use this macro to construct
 /// a boxed value with invalid backing storage will result in a compilation
 /// failure.
 ///
 /// [#27732]: https://github.com/rust-lang/rust/issues/27732
-/// [`BoxS::new`]: struct.BoxS.html#method.new
+/// [`StackBox::new`]: struct.StackBox.html#method.new
 ///
 /// # Examples
 ///
@@ -45,27 +45,27 @@ where
 ///
 /// ```
 /// use core::any::Any;
-/// use no_alloc::{boxed_s, BoxS};
+/// use no_alloc::{stack_boxed, StackBox};
 ///
-/// let boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_isize);
+/// let boxed: StackBox<dyn Any, [usize; 1]> = stack_boxed!(0_isize);
 /// ```
 #[macro_export]
-macro_rules! boxed_s {
+macro_rules! stack_boxed {
     ($val:expr) => {{
         let mut val = $val;
         let ptr = &mut val as *mut _;
-        let boxed = unsafe { $crate::BoxS::__new(&mut val, ptr) };
+        let boxed = unsafe { $crate::StackBox::__new(&mut val, ptr) };
         ::core::mem::forget(val);
         boxed
     }};
 }
 
 /*
-    impl BoxS
+    impl StackBox
 */
 
 #[cfg(feature = "coerce_unsized")]
-impl<T, U, M> CoerceUnsized<BoxS<U, M>> for BoxS<T, M>
+impl<T, U, M> CoerceUnsized<StackBox<U, M>> for StackBox<T, M>
 where
     T: ?Sized + Unsize<U>,
     U: ?Sized,
@@ -73,7 +73,7 @@ where
 {
 }
 
-impl<T, M> ops::Deref for BoxS<T, M>
+impl<T, M> ops::Deref for StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -83,7 +83,7 @@ where
     fn deref(&self) -> &Self::Target { unsafe { &*self.as_ptr() } }
 }
 
-impl<T, M> ops::DerefMut for BoxS<T, M>
+impl<T, M> ops::DerefMut for StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<T, M> Drop for BoxS<T, M>
+impl<T, M> Drop for StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -105,7 +105,7 @@ where
     }
 }
 
-impl<T, M> fmt::Debug for BoxS<T, M>
+impl<T, M> fmt::Debug for StackBox<T, M>
 where
     T: ?Sized + fmt::Debug,
     M: Memory,
@@ -115,7 +115,7 @@ where
     }
 }
 
-impl<T, M> fmt::Display for BoxS<T, M>
+impl<T, M> fmt::Display for StackBox<T, M>
 where
     T: ?Sized + fmt::Display,
     M: Memory,
@@ -125,7 +125,7 @@ where
     }
 }
 
-impl<T, M> fmt::Pointer for BoxS<T, M>
+impl<T, M> fmt::Pointer for StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -135,7 +135,7 @@ where
     }
 }
 
-impl<T, M> BoxS<T, M>
+impl<T, M> StackBox<T, M>
 where
     M: Memory,
 {
@@ -153,26 +153,26 @@ where
     /// Creating a boxed value:
     ///
     /// ```
-    /// use no_alloc::BoxS;
+    /// use no_alloc::StackBox;
     ///
-    /// let boxed: BoxS<isize, [usize; 1]> = BoxS::new(0);
+    /// let boxed: StackBox<isize, [usize; 1]> = StackBox::new(0);
     /// ```
     ///
     /// Creating a boxed ZST (zero-sized type):
     ///
     /// ```
-    /// use no_alloc::BoxS;
+    /// use no_alloc::StackBox;
     ///
-    /// let boxed: BoxS<(), [usize; 0]> = BoxS::new(());
+    /// let boxed: StackBox<(), [usize; 0]> = StackBox::new(());
     /// ```
     ///
     /// Failing to create a boxed value due to size error (this results in a
     /// _compile_ error):
     ///
     /// ```compile_fail
-    /// use no_alloc::BoxS;
+    /// use no_alloc::StackBox;
     ///
-    /// let _impossible = BoxS::<isize, [u8; 0]>::new(0);
+    /// let _impossible = StackBox::<isize, [u8; 0]>::new(0);
     /// ```
     ///
     /// Failing to create a boxed value due to alignment error (this results
@@ -180,9 +180,9 @@ where
     ///
     /// ```compile_fail
     /// use core::mem::size_of;
-    /// use no_alloc::BoxS;
+    /// use no_alloc::StackBox;
     ///
-    /// let _impossible = BoxS::<isize, [u8; size_of::<isize>()]>::new(0);
+    /// let _impossible = StackBox::<isize, [u8; size_of::<isize>()]>::new(0);
     /// ```
     ///
     /// Coercing to a boxed DST (dynamically-sized type) (requires the
@@ -190,17 +190,17 @@ where
     ///
     /// ```
     /// use core::any::Any;
-    /// use no_alloc::BoxS;
+    /// use no_alloc::StackBox;
     ///
     /// # #[cfg(feature = "coerce_unsized")]
     /// # {
-    /// let boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_isize);
+    /// let boxed: StackBox<dyn Any, [usize; 1]> = StackBox::new(0_isize);
     /// # }
     /// ```
-    pub fn new(x: T) -> Self { boxed_s!(x) }
+    pub fn new(x: T) -> Self { stack_boxed!(x) }
 }
 
-impl<M> BoxS<dyn Any + 'static, M>
+impl<M> StackBox<dyn Any + 'static, M>
 where
     M: Memory,
 {
@@ -212,11 +212,11 @@ where
     /// use core::any::Any;
     /// use core::fmt;
     ///
-    /// use no_alloc::{BoxS, Memory};
+    /// use no_alloc::{StackBox, Memory};
     ///
     /// fn write_if_str<W: fmt::Write, M: Memory>(
     ///     mut wtr: W,
-    ///     boxed: BoxS<dyn Any + 'static, M>
+    ///     boxed: StackBox<dyn Any + 'static, M>
     /// ) -> fmt::Result {
     ///     if let Ok(s) = boxed.downcast::<&str>() {
     ///         wtr.write_str(&s)?;
@@ -224,7 +224,7 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn downcast<T>(self) -> Result<BoxS<T, M>, Self>
+    pub fn downcast<T>(self) -> Result<StackBox<T, M>, Self>
     where
         T: Any,
     {
@@ -236,7 +236,7 @@ where
     }
 }
 
-impl<M> BoxS<dyn Any + Send + 'static, M>
+impl<M> StackBox<dyn Any + Send + 'static, M>
 where
     M: Memory,
 {
@@ -248,11 +248,11 @@ where
     /// use core::any::Any;
     /// use core::fmt;
     ///
-    /// use no_alloc::{BoxS, Memory};
+    /// use no_alloc::{StackBox, Memory};
     ///
     /// fn write_if_str<W: fmt::Write, M: Memory>(
     ///     mut wtr: W,
-    ///     boxed: BoxS<dyn Any + Send + 'static, M>
+    ///     boxed: StackBox<dyn Any + Send + 'static, M>
     /// ) -> fmt::Result {
     ///     if let Ok(s) = boxed.downcast::<&str>() {
     ///         wtr.write_str(&s)?;
@@ -260,7 +260,7 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn downcast<T>(self) -> Result<BoxS<T, M>, Self>
+    pub fn downcast<T>(self) -> Result<StackBox<T, M>, Self>
     where
         T: Any,
     {
@@ -272,7 +272,7 @@ where
     }
 }
 
-impl<T, M> BoxS<T, M>
+impl<T, M> StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -280,14 +280,14 @@ where
     #[doc(hidden)]
     pub unsafe fn __new<U>(val: &mut U, ptr: *mut T) -> Self {
         let _ = StaticAssertions::<T, U, M>::new();
-        BoxS::<T, M>::from_ptr(
+        StackBox::<T, M>::from_ptr(
             val,
             FatPointer::from_raw(ptr).map(|fat| fat.meta),
         )
     }
 }
 
-impl<T, M> BoxS<T, M>
+impl<T, M> StackBox<T, M>
 where
     T: ?Sized,
     M: Memory,
@@ -324,22 +324,22 @@ where
         write_addr(self.ptr, &mut *self.buf as *mut M as _)
     }
 
-    unsafe fn downcast_unchecked<U: Any>(mut self) -> BoxS<U, M> {
+    unsafe fn downcast_unchecked<U: Any>(mut self) -> StackBox<U, M> {
         let Self { ref mut buf, ptr } = self;
         let buf = ManuallyDrop::new(ManuallyDrop::take(buf));
         mem::forget(self);
-        BoxS { buf, ptr: ptr as *mut _ }
+        StackBox { buf, ptr: ptr as *mut _ }
     }
 }
 
-unsafe impl<T, M> Send for BoxS<T, M>
+unsafe impl<T, M> Send for StackBox<T, M>
 where
     T: ?Sized + Send,
     M: Memory,
 {
 }
 
-unsafe impl<T, M> Sync for BoxS<T, M>
+unsafe impl<T, M> Sync for StackBox<T, M>
 where
     T: ?Sized + Sync,
     M: Memory,
@@ -359,26 +359,26 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let mut boxed = BoxS::<usize, [usize; 1]>::new(0);
+        let mut boxed = StackBox::<usize, [usize; 1]>::new(0);
         assert_eq!(*boxed, 0);
         *boxed = 1;
         assert_eq!(*boxed, 1);
     }
 
     #[test]
-    fn boxed_s_macro() {
-        let _boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_usize);
+    fn stack_boxed_macro() {
+        let _boxed: StackBox<dyn Any, [usize; 1]> = stack_boxed!(0_usize);
     }
 
     #[cfg(feature = "coerce_unsized")]
     #[test]
     fn coerce_unsized() {
-        let _boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_usize);
+        let _boxed: StackBox<dyn Any, [usize; 1]> = StackBox::new(0_usize);
     }
 
     #[test]
     fn zst() {
-        let mut boxed = BoxS::<(), [usize; 0]>::new(());
+        let mut boxed = StackBox::<(), [usize; 0]>::new(());
         assert_eq!(*boxed, ());
         *boxed = ();
     }
@@ -392,7 +392,7 @@ mod tests {
 
         let dropped = AtomicBool::new(false);
         let foo = Foo(&dropped);
-        let boxed = BoxS::<_, [usize; 1]>::new(foo);
+        let boxed = StackBox::<_, [usize; 1]>::new(foo);
         assert!(!dropped.load(Ordering::Relaxed));
         mem::drop(boxed);
         assert!(dropped.load(Ordering::Relaxed));
@@ -400,15 +400,15 @@ mod tests {
 
     #[test]
     fn any() {
-        let boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_usize);
+        let boxed: StackBox<dyn Any, [usize; 1]> = stack_boxed!(0_usize);
         assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
-        let boxed: BoxS<dyn Any + Send, [usize; 1]> = boxed_s!(0_usize);
+        let boxed: StackBox<dyn Any + Send, [usize; 1]> = stack_boxed!(0_usize);
         assert_eq!(*boxed.downcast::<usize>().ok().unwrap(), 0);
     }
 
     #[test]
     fn slice() {
-        let boxed: BoxS<[u8], [usize; 1]> = boxed_s!([0_u8; 4]);
+        let boxed: StackBox<[u8], [usize; 1]> = stack_boxed!([0_u8; 4]);
         assert_eq!(&*boxed, &[0_u8; 4][..]);
     }
 }

@@ -13,11 +13,11 @@
 //! use core::any::Any;
 //!
 //! use cortex_m_rt::entry;
-//! use no_alloc::{boxed_s, BoxS};
+//! use no_alloc::{stack_boxed, StackBox};
 //!
 //! #[entry]
 //! fn main() -> ! {
-//!     let boxed: BoxS<dyn Any, [usize; 1]> = boxed_s!(0_isize);
+//!     let boxed: StackBox<dyn Any, [usize; 1]> = stack_boxed!(0_isize);
 //!     assert_eq!(boxed.downcast_ref::<isize>(), Some(&0));
 //!     loop {
 //!         // Application logic
@@ -31,14 +31,14 @@
 //!
 //! ```compile_fail
 //! use core::any::Any;
-//! use no_alloc::BoxS;
+//! use no_alloc::StackBox;
 //!
-//! let _impossible: BoxS<dyn Any, [usize; 0]> = boxed_s!(0_isize);
+//! let _impossible: StackBox<dyn Any, [usize; 0]> = stack_boxed!(0_isize);
 //! ```
 //!
-//! For more information, consult the documentation for [`BoxS::new`].
+//! For more information, consult the documentation for [`StackBox::new`].
 //!
-//! [`BoxS::new`]: struct.BoxS.html#method.new
+//! [`StackBox::new`]: struct.StackBox.html#method.new
 //!
 //! # Dependencies
 //!
@@ -50,22 +50,22 @@
 //!
 //!   **This feature requires a nightly toolchain**
 //!
-//!   Implements [`CoerceUnsized`] for [`BoxS`], circumventing the requirement
-//!   for the [`boxed_s`] macro:
+//!   Implements [`CoerceUnsized`] for [`StackBox`], circumventing the requirement
+//!   for the [`stack_boxed`] macro:
 //!
 //!   ```
 //!   # #[cfg(feature = "coerce_unsized")]
 //!   # {
 //!   use core::any::Any;
-//!   use no_alloc::BoxS;
+//!   use no_alloc::StackBox;
 //!
-//!   let boxed: BoxS<dyn Any, [usize; 1]> = BoxS::new(0_isize);
+//!   let boxed: StackBox<dyn Any, [usize; 1]> = StackBox::new(0_isize);
 //!   # }
 //!   ```
 //!
 //!   [`CoerceUnsized`]: https://doc.rust-lang.org/stable/core/ops/trait.CoerceUnsized.html
-//!   [`BoxS`]: struct.BoxS.html
-//!   [`boxed_s`]: macro.boxed.html
+//!   [`StackBox`]: struct.StackBox.html
+//!   [`stack_boxed`]: macro.boxed.html
 //!
 //! * `const_generics`
 //!
@@ -106,7 +106,6 @@ mod allocator;
 mod assert;
 mod assert_unsync_safe;
 mod boxed;
-mod boxed_s;
 mod capacity_error;
 mod global_allocator;
 mod layout;
@@ -114,6 +113,7 @@ mod mem;
 mod pad_to_alignment;
 mod ptr;
 mod raw;
+mod stack_boxed;
 mod static_buf;
 mod unsync_linear_allocator;
 
@@ -122,9 +122,9 @@ use pad_to_alignment::PadToAlignment;
 pub use allocator::Allocator;
 pub use assert_unsync_safe::AssertUnsyncSafe;
 pub use boxed::Box;
-pub use boxed_s::BoxS;
 pub use capacity_error::CapacityError;
 pub use global_allocator::GlobalAllocator;
 pub use layout::Layout;
 pub use mem::Memory;
+pub use stack_boxed::StackBox;
 pub use unsync_linear_allocator::UnsyncLinearAllocator;

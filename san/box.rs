@@ -1,8 +1,8 @@
 use core::mem;
 
 use no_alloc::{
-    boxed, global_allocator, static_buf, AssertUnsyncSafe, Box, GlobalAllocator,
-    UnsyncLinearAllocator,
+    boxed, global_allocator, static_buf, AssertUnsyncSafe, Box,
+    GlobalAllocator, UnsyncLinearAllocator,
 };
 
 global_allocator! {
