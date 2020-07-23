@@ -28,7 +28,7 @@ macro_rules! global_allocator {
         type $allocator:ident = $delegate:ty;
         const unsafe fn $init:ident() -> $_:ty $delegate_init:block
     ) => {
-        enum $allocator {}
+        pub enum $allocator {}
         $crate::__global_allocator_impl! {
             @unsafe $allocator, $delegate, $init, $delegate_init
         }

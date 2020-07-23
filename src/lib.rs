@@ -1,5 +1,4 @@
-//! Embedded friendly pointer types for `no_std` applications without heap
-//! allocators.
+//! Static memory allocators for applications without heap.
 //!
 //! # Usage
 //!
@@ -7,21 +6,27 @@
 //! heap allocation:
 //!
 //! ```ignore
-//! #![no_main]
 //! #![no_std]
+//! #![no_main]
+//!
+//! extern crate libc;
 //!
 //! use core::any::Any;
-//!
-//! use cortex_m_rt::entry;
 //! use no_alloc::{stack_boxed, StackBox};
 //!
-//! #[entry]
-//! fn main() -> ! {
+//! #[no_mangle]
+//! pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
 //!     let boxed: StackBox<dyn Any, [usize; 1]> = stack_boxed!(0_isize);
-//!     assert_eq!(boxed.downcast_ref::<isize>(), Some(&0));
-//!     loop {
-//!         // Application logic
+//!     if let Ok(_) = boxed.downcast::<isize>().map(|v| *v) {
+//!         0
+//!     } else {
+//!         1
 //!     }
+//! }
+//!
+//! #[panic_handler]
+//! fn my_panic(_info: &core::panic::PanicInfo) -> ! {
+//!     loop {}
 //! }
 //! ```
 //!
@@ -75,13 +80,6 @@
 //!   a few select lengths.
 //!
 //!   [`Memory`]: trait.Memory.html
-//!
-//! * `pool`
-//!
-//!   Enables smart pointers allocated from a global memory pool. This will
-//!   drag in [`heapless`] as a dependency.
-//!
-//!   [`heapless`]: https://docs.rs/heapless
 //!
 //! # Safety
 //!
